@@ -1,37 +1,53 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
+	"zemmai-dev/yattemasu/domain/model"
+	"zemmai-dev/yattemasu/infra/persistence"
+	"zemmai-dev/yattemasu/usecase"
 
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/linebot"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
-type ChatMode string
+type ChatStatus string
 
 const (
-	Normal      = ChatMode("Normal")
-	AreaSetting = ChatMode("AreaSetting")
+	Normal      = ChatStatus("Normal")
+	AreaSetting = ChatStatus("AreaSetting")
 )
 
-type ChatStatus struct {
-	UserID   string
-	ChatMode ChatMode
+type ChatChannel struct {
+	UserID      string
+	ChatStatus  ChatStatus
+	LastUpdated time.Time
 }
 
 func DotenvLoad() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }
 
 func main() {
+
+	channel := []*ChatChannel{}
+
 	DotenvLoad()
 
-	statuses := []ChatStatus{}
+	dsn := "user1:user1-passwd@tcp(127.0.0.1:3306)/test-db?charset=utf8mb4&parseTime=True&loc=Local"
+	db, _ := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+	db.AutoMigrate(&model.User{}, &model.Group{})
+	up := persistence.NewUserPersistence(db)
+	uu := usecase.NewUserUsecase(up)
 
 	bot, err := linebot.New(os.Getenv("CHANNEL_SECRET"), os.Getenv("CHANNEL_ACCESS_TOKEN"))
 
@@ -50,30 +66,77 @@ func main() {
 		}
 
 		for _, event := range events {
-			if event.Type == linebot.EventTypeMessage {
-				switch message := event.Message.(type) {
-				case *linebot.TextMessage:
 
-					var chatStatus ChatStatus
-					var replayMessage string
+			user, _ := uu.Create(event.Source.UserID)
 
-					for _, status := range statuses {
-						if status.UserID == event.Source.UserID {
-							chatStatus = status
+			switch event.Type {
+			case linebot.EventTypeMessage:
+				var chatChannel *ChatChannel = &ChatChannel{UserID: event.Source.UserID, ChatStatus: Normal, LastUpdated: event.Timestamp}
+
+				if length := len(channel); length != 0 {
+					for index, ch := range channel {
+						if ch.UserID == event.Source.UserID {
+							chatChannel = channel[index]
+							break
+						} else {
+							if length == index {
+								channel = append(channel, chatChannel)
+							}
 							break
 						}
 					}
+				} else {
+					channel = append(channel, chatChannel)
+				}
 
-				case *linebot.StickerMessage:
-					if _, err = bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage("sticker")).Do(); err != nil {
-						log.Print(err)
+				log.Printf("Channel: %s", *chatChannel)
+
+				var replayMessage linebot.SendingMessage
+
+				switch chatChannel.ChatStatus {
+				case Normal:
+					switch message := event.Message.(type) {
+					case *linebot.TextMessage:
+
+						switch message.Text {
+						case "エリアを設定":
+							locationAction := linebot.NewLocationAction("位置情報を送信！")
+							quickReplyItems := linebot.NewQuickReplyItems(linebot.NewQuickReplyButton("", locationAction))
+							replayMessage = linebot.NewTextMessage("位置情報を教えてください！").WithQuickReplies(quickReplyItems)
+							chatChannel.ChatStatus = AreaSetting
+							log.Print(chatChannel)
+
+							if _, err = bot.ReplyMessage(event.ReplyToken, replayMessage).Do(); err != nil {
+								log.Print(err)
+							}
+						default:
+							replayMessage = linebot.NewTextMessage("ううむ")
+							if _, err = bot.ReplyMessage(event.ReplyToken, replayMessage).Do(); err != nil {
+								log.Print(err)
+							}
+						}
+					}
+				case AreaSetting:
+
+					switch message := event.Message.(type) {
+					case *linebot.LocationMessage:
+						loc := model.Location{Longitude: message.Longitude, Latitude: message.Latitude}
+						user, _ = uu.SetLocation(user, loc)
+						replayMessage = linebot.NewTextMessage(fmt.Sprintf("あなたの位置情報を「%f, %f」に設定しました！", user.Location.Latitude, user.Location.Longitude))
+						chatChannel.ChatStatus = Normal
+
+						if _, err = bot.ReplyMessage(event.ReplyToken, replayMessage).Do(); err != nil {
+							log.Print(err)
+						}
 					}
 				}
+
 			}
 		}
+
 	})
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":9000", nil); err != nil {
 		log.Fatal(err)
 	}
 }
