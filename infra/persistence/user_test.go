@@ -21,7 +21,7 @@ func TestUserPersistence(t *testing.T) {
 	up := NewUserPersistence(db)
 
 	lineId := "U4e88ac334487b33946de54c48b93ff14"
-	
+
 	user, err := up.Create(lineId)
 
 	if err != nil {

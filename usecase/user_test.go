@@ -30,7 +30,7 @@ func TestUserUsecase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	loc := model.Location{Longitude: 43, Latitude: 135}
 
 	newUser, err := uu.SetLocation(user, loc)
