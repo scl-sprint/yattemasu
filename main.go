@@ -96,24 +96,30 @@ func main() {
 
 	DotenvLoad()
 
+	// Database initialization
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:3306)/%s?charset=utf8mb4&parseTime=True&loc=Local", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_HOST"), os.Getenv("DB_NAME"))
 	db, _ := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
 	db.AutoMigrate(&model.User{}, &model.Group{})
+
+	// Dependency Injection
 	up := persistence.NewUserPersistence(db)
 	uu := usecase.NewUserUsecase(up)
 
+	// Line Messaging API initialization
 	bot, err := linebot.New(os.Getenv("CHANNEL_SECRET"), os.Getenv("CHANNEL_ACCESS_TOKEN"))
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Google Place API initialization
 	c, err := maps.NewClient(maps.WithAPIKey(os.Getenv("GMAP_API_KEY")))
-
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Static files hosting
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))))
 
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		events, err := bot.ParseRequest(r)
