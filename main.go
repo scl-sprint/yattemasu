@@ -219,6 +219,18 @@ func main() {
 							if _, err = bot.ReplyMessage(event.ReplyToken, replayMessage).Do(); err != nil {
 								log.Print(err)
 							}
+						case "お店を検索":
+							replayMessage = linebot.NewTextMessage("検索したいワードを入力してください！")
+							
+							if _, err := bot.ReplyMessage(event.ReplyToken, replayMessage).Do(); err != nil {
+								log.Print(err)
+							}
+						case "お問い合わせ":
+							replayMessage = linebot.NewTextMessage("そちらの機能は現在実装中です......")
+							
+							if _, err := bot.ReplyMessage(event.ReplyToken, replayMessage).Do(); err != nil {
+								log.Print(err)
+							}
 						default:
 
 							defaultLocation := model.Location{Longitude: 0, Latitude: 0}
