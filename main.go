@@ -118,6 +118,52 @@ func main() {
 		log.Fatal(err)
 	}
 
+	richMenu := linebot.RichMenu{
+		Size: linebot.RichMenuSize{Width: 2500, Height: 1686},
+		Selected: true,
+		Name: "Common Menu",
+		ChatBarText: "タップして開きましょう",
+		Areas: []linebot.AreaDetail{
+			{
+				Bounds: linebot.RichMenuBounds{X: 0, Y: 0, Width: 1666, Height: 1686},
+				Action: linebot.RichMenuAction{
+					Type: linebot.RichMenuActionTypeMessage,
+					Text: "お店を検索",
+				},
+			},
+			{
+				Bounds: linebot.RichMenuBounds{X: 1666, Y: 0, Width: 833, Height: 843},
+				Action: linebot.RichMenuAction{
+					Type: linebot.RichMenuActionTypeMessage,
+					Text: "エリアを設定",
+				},
+			},
+			{
+				Bounds: linebot.RichMenuBounds{X: 1666, Y: 843 , Width: 833, Height: 843},
+				Action: linebot.RichMenuAction{
+					Type: linebot.RichMenuActionTypeMessage,
+					Text: "お問い合わせ",
+				},
+			},
+		},
+	}
+
+	res, err := bot.CreateRichMenu(richMenu).Do()
+	if err != nil {
+		log.Fatalf("Create richmenu error: %+v",err)
+	}
+
+	_, err = bot.UploadRichMenuImage(res.RichMenuID, "./static/richmenu.png").Do()
+
+	if err != nil {
+		log.Fatalf("Create richmenu image upload: %+v",err)
+	}
+
+	if _, err := bot.SetDefaultRichMenu(res.RichMenuID).Do(); err != nil {
+		log.Fatal(err)
+	}
+
+
 	// Static files hosting
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static/"))))
 
